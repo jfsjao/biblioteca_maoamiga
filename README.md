@@ -33,7 +33,7 @@ GEMINI_API_KEY=sua_chave_api_aqui
 3. Execute o script principal:
 
 ```bash
-python main.py
+python scraping_livros.py
 ```
 
 4. O resultado será salvo no arquivo `livros_com_sentimentos.json`.
