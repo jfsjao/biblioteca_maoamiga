@@ -1,140 +1,144 @@
-import requests
-from bs4 import BeautifulSoup
+import os
 import json
-import re  # Para manipulação de strings corretamente
+import requests
+import re
+import time
+from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 
-def corrigir_nome(nome):
-    """
-    Remove números seguidos de parênteses no início da string.
-    Exemplo: '22) Guy de Maupassant' vira 'Guy de Maupassant'.
-    """
-    return re.sub(r"^\d+\)", "", nome).strip()
+# ========== CONFIGURAÇÃO API GEMINI ==========
+load_dotenv()
+API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={API_KEY}"
 
+# ========== CLASSIFICAÇÃO DE SENTIMENTOS ==========
+def classificar_sentimentos(titulo, descricao):
+    prompt = f"""
+Classifique esse livro em até 3 sentimentos baseando-se no título e descrição. Os sentimentos podem incluir:
+- Felicidade → livros interessantes
+- Raiva → livros de terapias alternativas
+- Paixão → livros de romance
+- Tristeza → livros de superação pessoal
+Você pode inventar novos sentimentos se fizer sentido com o conteúdo.
+
+Título: {titulo}
+Descrição: {descricao}
+
+Responda apenas com uma lista JSON:
+["sent1", "sent2", "sent3"]
+    """
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}]
+    }
+
+    while True:
+        try:
+            response = requests.post(GEMINI_API_URL, json=payload, headers={"Content-Type": "application/json"})
+
+            if response.status_code == 200:
+                data = response.json()
+                gemini_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                gemini_text = gemini_text.replace("```json", "").replace("```", "").strip()
+                match = re.search(r"\[(.*?)\]", gemini_text, re.DOTALL)
+                if match:
+                    return json.loads("[" + match.group(1).strip() + "]")
+                else:
+                    return []
+
+            elif response.status_code == 429:
+                data = response.json()
+                retry_delay = 60  # valor padrão
+                try:
+                    retry_str = data['error']['details'][-1]['retryDelay']
+                    retry_delay = int(retry_str.replace('s', '').strip())
+                except Exception:
+                    pass
+                print(f"⚠️ Limite excedido. Aguardando {retry_delay}s...")
+                time.sleep(retry_delay)
+
+            else:
+                print(f"Erro Gemini: {response.status_code} - {response.text}")
+                return []
+
+        except Exception as e:
+            print(f"Erro ao classificar '{titulo}': {e}")
+            return []
+
+# ========== FUNÇÕES DE SCRAPING ==========
 def corrigir_link(link):
-    """
-    Corrige a URL de download, substituindo espaços por '%20' e mantendo outros caracteres especiais.
-    """
     return link.replace(" ", "%20").replace("%28", "(").replace("%29", ")")
 
-def pegar_imagem(livro_soup):
-    """
-    Tenta pegar a URL da imagem de capa do livro.
-    Tenta primeiro pegar o data-src e depois o src.
-    """
-    # Busca a tag <img> com a classe da capa do livro
-    imagem_tag = livro_soup.find('img', class_='aligncenter')
+def corrigir_nome(nome):
+    return re.sub(r"^\#\d+\s", "", nome).strip()
+
+def pegar_imagem(imagem_tag):
     if imagem_tag:
-        # Primeiro, tentamos pegar o link da imagem de 'data-src'
-        imagem_url = imagem_tag.get('data-src')
-        if not imagem_url:
-            # Se não encontrar, tenta pegar o link do 'src'
-            imagem_url = imagem_tag.get('src')
-        
-        # Se a imagem tiver um link, completamos o caminho se necessário (se for um link relativo)
-        if imagem_url:
-            if imagem_url.startswith("/"):
-                imagem_url = "https://www.infolivros.org" + imagem_url
-            return imagem_url
-    return None  # Caso não encontre a imagem
+        imagem_url = imagem_tag.get('data-src') or imagem_tag.get('src')
+        if imagem_url and imagem_url.startswith("/"):
+            imagem_url = "https://www.infolivros.org" + imagem_url
+        return corrigir_link(imagem_url) if imagem_url else None
+    return None
 
-def scraping_livros_autores():
-    """
-    Faz o scraping da página de todos os autores listados para coletar os livros, descrição, links de download e imagens.
-    Limita o número de livros coletados a 100, pegando apenas os 2 melhores por autor.
-    """
-    
-    # URL da página principal com a lista de autores
-    url_autores = "https://www.infolivros.org/autores/classicos/"
+def scrape_livros(url):
+    livros = []
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    livros_na_pagina = soup.find_all('div', class_='gb-loop-item caja-pdfs caja-pdfs-nuevo')
 
-    # Para armazenar os dados dos livros
-    dados = {"livros": []}
+    for livro in livros_na_pagina:
+        try:
+            titulo_tag = livro.find('h3', class_='gb-text titulo-caja-pdfs')
+            descricao_tags = livro.find_all('p', class_='gb-text descripcion-caja-pdfs')
+            link_download_tag = livro.find('a', class_='gb-text boton-descarga-caja-pdfs')
+            imagem_tag = livro.find('img')
 
-    print(f"Coletando dados de {url_autores}...")
+            if titulo_tag and descricao_tags and link_download_tag and imagem_tag:
+                titulo = corrigir_nome(titulo_tag.text.strip())
+                descricao = descricao_tags[1].text.strip() if len(descricao_tags) > 1 else ''
+                link_download = corrigir_link(link_download_tag['href'])
+                imagem_capa = pegar_imagem(imagem_tag)
 
-    # Requisição para acessar a página de autores
-    resposta = requests.get(url_autores)
-    if resposta.status_code == 200:
-        soup = BeautifulSoup(resposta.content, 'html.parser')
+                livros.append({
+                    'titulo': titulo,
+                    'descricao': descricao,
+                    'link_download': link_download,
+                    'imagem_capa': imagem_capa
+                })
+        except Exception as e:
+            print(f"Erro ao processar livro: {e}")
 
-        # Encontrar todos os divs que contêm o link e o nome do autor
-        autores_div = soup.find_all('div', class_='content_raiz')
+    return livros
 
-        contador_livros = 0  # Contador de livros
-
-        # Para cada autor, coletar os livros
-        for autor_div in autores_div:
-            # Tentar encontrar o nome do autor dentro do h2
-            nome_autor_tag = autor_div.find('h2', class_='has-text-align-center')
-            if nome_autor_tag:
-                nome_autor = nome_autor_tag.text.strip()
-                nome_autor = corrigir_nome(nome_autor)  # Corrigir o nome do autor removendo números e parênteses
-            else:
-                print("Erro: Não foi possível encontrar o nome do autor.")
-                continue  # Pular para o próximo autor se o nome não for encontrado
-
-            link_autor = autor_div.find('a', href=True)['href']
-
-            # Acessa a página do autor
-            resposta_autor = requests.get(link_autor)
-            if resposta_autor.status_code == 200:
-                soup_autor = BeautifulSoup(resposta_autor.content, 'html.parser')
-
-                # Encontrar os livros na página do autor
-                livros = soup_autor.find_all('div', class_='content_libro_autor')
-
-                # Limitar a 2 livros por autor
-                livros_por_autor = livros[:2]
-
-                # Para cada livro encontrado, coletar título, descrição, link de download e imagem
-                for livro in livros_por_autor:
-                    titulo = livro.find('h2', class_='has-text-align-center').text.strip()
-                    titulo = corrigir_nome(titulo)  # Corrigir o título removendo números e parênteses
-                    descricao = livro.find('div', class_='descripcion').text.strip()
-
-                    # Procurar pelos links de download (div com classe 'btn-descargar' ou 'btn-leer')
-                    link_download_elemento = livro.find('div', class_='btn-descargar').find('a', href=True) if livro.find('div', class_='btn-descargar') else None
-                    if not link_download_elemento:
-                        link_download_elemento = livro.find('div', class_='btn-leer').find('a', href=True) if livro.find('div', class_='btn-leer') else None
-                    
-                    link_download = link_download_elemento['href'] if link_download_elemento else None
-
-                    # Corrigir o link de download para garantir que os espaços e caracteres especiais sejam bem formatados
-                    if link_download:
-                        link_download = corrigir_link(link_download)
-
-                    # Obter a imagem de capa do livro
-                    imagem_capa = pegar_imagem(livro)
-
-                    # Adicionar as informações do livro ao dicionário
-                    dados["livros"].append({
-                        'autor': nome_autor,
-                        'titulo': titulo,
-                        'descricao': descricao,
-                        'link_download': link_download,  # Link de download corrigido
-                        'imagem_capa': imagem_capa  # Adiciona a imagem de capa
-                    })
-
-                    # Incrementar o contador de livros
-                    contador_livros += 1
-
-                    # Imprimir o número de livros coletados até o momento
-                    print(f"Livros coletados: {contador_livros}")
-
-                    # Se já tivermos coletado 100 livros, parar o processo
-                    if contador_livros >= 100:
-                        print("Limite de 100 livros alcançado.")
-                        break
-            if contador_livros >= 100:
-                break
-
-        # Salvar os dados no formato JSON
-        with open('livros_autores.json', 'w', encoding='utf-8') as json_file:
-            json.dump(dados, json_file, ensure_ascii=False, indent=4)
-
-        print(f"Arquivo JSON 'livros_autores.json' criado com sucesso.")
-    else:
-        print(f"Erro ao acessar a página {url_autores}: {resposta.status_code}")
-
-# Chama a função de scraping
+# ========== EXECUÇÃO COMPLETA ==========
 if __name__ == "__main__":
-    scraping_livros_autores()
+    urls = [
+        "https://www.infolivros.org/livros-pdf-gratis/terapia-alternativa/meditacao/",
+        "https://www.infolivros.org/livros-pdf-gratis/terapia-alternativa/ioga/",
+        "https://www.infolivros.org/livros-pdf-gratis/superacao-pessoal/auto-estima/",
+        "https://www.infolivros.org/livros-pdf-gratis/superacao-pessoal/inteligencia-emocional/",
+        "https://www.infolivros.org/livros-pdf-gratis/superacao-pessoal/reflexao/",
+        "https://www.infolivros.org/livros-pdf-gratis/arte/fotografia/",
+        "https://www.infolivros.org/livros-pdf-gratis/temas-varios/astronomia/",
+        "https://www.infolivros.org/livros-pdf-gratis/amor/amor-de-verao/",
+        "https://www.infolivros.org/livros-pdf-gratis/amor/romance/"
+    ]
+
+    todos_livros = []
+
+    for url in urls:
+        print(f"🔎 Scraping: {url}")
+        livros = scrape_livros(url)
+        for livro in livros:
+            titulo = livro['titulo']
+            descricao = livro['descricao']
+            print(f"💬 Classificando sentimentos: {titulo}")
+            sentimentos = classificar_sentimentos(titulo, descricao)
+            livro['sentimentos'] = sentimentos
+            time.sleep(1.5)  # Pausa entre chamadas para evitar rate limit
+        todos_livros.extend(livros)
+
+    with open("livros_com_sentimentos.json", "w", encoding="utf-8") as f:
+        json.dump({"livros": todos_livros}, f, ensure_ascii=False, indent=4)
+
+    print("✅ Arquivo 'livros_com_sentimentos.json' salvo com sucesso.")

@@ -1,72 +1,75 @@
+# 📚 Recomendador de Livros com Análise de Sentimentos
 
-# Scraping de Livros
+Este projeto realiza scraping no site [Infolivros](https://www.infolivros.org) para coletar livros gratuitos por categoria e utiliza a **API Gemini** do Google para classificar os sentimentos associados a cada livro com base no título e na descrição.
 
-Este projeto utiliza **web scraping** para coletar dados de livros de um site de literatura. Ele extrai informações como o nome do autor, título do livro, descrição, link para download e imagem da capa do livro.
+## ⚙️ Funcionalidades
 
-## Funcionalidade
+- Coleta automática de livros por categoria (scraping).
+- Análise de sentimentos com a API Gemini.
+- Geração de um arquivo JSON com todos os livros e seus respectivos sentimentos.
 
-O script realiza o scraping a partir da página de autores e coleta as seguintes informações para cada livro:
+## 🧠 Exemplos de Sentimentos Detectados
 
-- **Autor**: Nome do autor do livro.
-- **Título**: Nome do livro.
-- **Descrição**: Resumo ou descrição do livro.
-- **Link de Download**: Link para baixar o livro.
-- **Imagem da Capa**: URL da imagem da capa do livro.
+- Felicidade → livros interessantes
+- Raiva → livros de terapias alternativas
+- Paixão → livros de romance
+- Tristeza → livros de superação pessoal
+- Nostalgia, Esperança, entre outros detectados pela IA.
 
-Até 100 livros são coletados, com um máximo de dois livros por autor.
+## 🔧 Como Usar
 
-## Tecnologias Utilizadas
+1. Clone o repositório e instale as dependências:
 
-- **Python**: Linguagem utilizada para desenvolver o scraper.
-- **BeautifulSoup**: Biblioteca para análise e extração de dados de páginas HTML.
-- **Requests**: Biblioteca para fazer requisições HTTP.
-- **Regex**: Utilizada para manipulação de strings e limpeza de dados.
+```bash
+pip install -r requirements.txt
+```
 
-## Como Usar
+2. Crie um arquivo `.env` na raiz com a chave da sua API Gemini:
 
-1. **Clone o repositório:**
+```
+GEMINI_API_KEY=sua_chave_api_aqui
+```
 
-   ```bash
-   git clone https://github.com/jfsjao/biblioteca_m-o_amiga.git
-   cd biblioteca_m-o_amiga
-   ```
+3. Execute o script principal:
 
-2. **Instale as dependências:**
+```bash
+python main.py
+```
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+4. O resultado será salvo no arquivo `livros_com_sentimentos.json`.
 
-3. **Execute o script de scraping:**
-
-   ```bash
-   python scraping_livros.py
-   ```
-
-   O script irá criar um arquivo JSON (`livros_autores.json`) com os dados dos livros coletados.
-
-## Estrutura do Projeto
-
-- `scraping_livros.py`: O script principal que coleta dados dos livros e salva no arquivo `livros_autores.json`.
-- `requirements.txt`: Arquivo com as dependências do projeto.
-
-## Exemplo de Dados no `livros_autores.json`
-
-O arquivo JSON gerado terá o seguinte formato:
+## 📝 Estrutura do JSON
 
 ```json
 {
-    "livros": [
-        {
-            "autor": "Júlio Verne",
-            "titulo": "Dois Anos de Férias",
-            "descricao": "Dois Anos de Férias é uma emocionante história de sobrevivência e amizade em uma ilha deserta, escrita pelo lendário autor Júlio Verne.Este clássico literário aborda temas como coragem, trabalho em equipe e superação de desafios em um ambiente hostil, capturando a imaginação dos leitores.Mergulhe nas páginas de “Dois Anos de Férias” e deixe-se levar pela intriga e emoção desta aventura inesquecível. Descubra por que esta obra-prima de Júlio Verne tem cativado gerações de leitores!",
-            "link_download": "https://dl.dropboxusercontent.com/scl/fi/u47258mu5mj8vytmw8nuk/Dois-Anos-de-F-rias-Julio-Verne.pdf?rlkey=38qrja3pwtb4d7yfz6z9avfwz&dl=0",
-            "imagem_capa": "https://www.infolivros.org/wp-content/uploads/2024/03/Dois-Anos-de-Ferias-de-Julio-Verne.webp"
-        }
-    ]
+  "livros": [
+    {
+      "titulo": "Nome do Livro",
+      "descricao": "Breve descrição",
+      "link_download": "https://...",
+      "imagem_capa": "https://...",
+      "sentimentos": ["Tristeza", "Paixão", "Esperança"]
+    },
+    ...
+  ]
 }
 ```
+
+## 📁 Categorias Analisadas
+
+- Meditação
+- Ioga
+- Autoestima
+- Inteligência Emocional
+- Reflexão
+- Fotografia
+- Astronomia
+- Amor de Verão
+- Romance
+
+## 🛑 Limite da API
+
+O script controla automaticamente o limite de requisições da API (erro 429) e aguarda o tempo necessário para continuar sem falhar.
 
 ## Contribuindo
 
