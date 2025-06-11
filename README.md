@@ -3,6 +3,8 @@
 
 Este projeto realiza **scraping** no site [Infolivros](https://www.infolivros.org) para coletar livros gratuitos por categoria e utiliza a **API Gemini** do Google para classificar os sentimentos associados a cada livro com base no título e na descrição. Além disso, a descrição é traduzida para o **português** antes de ser processada pela API.
 
+Projeto finalizado utilizado na plataforma [Animus-Biblioteca](https://animus-saude-mental.netlify.app/biblioteca)
+
 ## ⚙️ Funcionalidades
 
 - Coleta automática de livros por categoria (scraping).
