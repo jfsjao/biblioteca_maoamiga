@@ -84,7 +84,3 @@ O script controla automaticamente o limite de requisições da API (erro **429**
 ## Contribuindo
 
 Contribuições são bem-vindas! Se você deseja melhorar o projeto ou adicionar novas funcionalidades, por favor, envie um **pull request**.
-
-## Licença
-
-Este projeto está licenciado sob a licença **MIT** - veja o arquivo [LICENSE](LICENSE) para mais detalhes.
